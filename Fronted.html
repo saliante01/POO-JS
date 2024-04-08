@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tienda Online</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="TemplateTienda.css">
+</head>
+<body>
+    <h1>Tienda Online</h1>
+    <div id="catalogo">
+        <!-- Aquí se mostrarán los productos del catálogo -->
+    </div>
+    <div>
+        <div id="carrito1" class="carrito">
+            <h2>Carrito 1</h2>
+            <div class="cantidad-carrito">0 Productos</div>
+            <ul class="lista-carrito">
+                <!-- Aquí se mostrarán los productos agregados al carrito 1 -->
+            </ul>
+        </div>
+        <div id="carrito2" class="carrito">
+            <h2>Carrito 2</h2>
+            <div class="cantidad-carrito">0 Productos</div>
+            <ul class="lista-carrito">
+                <!-- Aquí se mostrarán los productos agregados al carrito 2 -->
+            </ul>
+        </div>
+    </div>
+    <div id="mensaje"></div>
+    <!-- Botón de compra -->
+    <button id="comprar">Comprar</button>
+    <script>
+        class Producto {
+            constructor(id, nombre, precio, stock) {
+                this.id = id;
+                this.nombre = nombre;
+                this.precio = precio;
+                this.stock = stock;
+            }
+        }
+
+        class Carrito {
+            constructor() {
+                this.productos = [];
+            }
+
+            agregarProducto(producto) {
+                this.productos.push(producto);
+            }
+
+            vaciarCarrito() {
+                this.productos = [];
+            }
+
+            obtenerCantidadProductos() {
+                return this.productos.length;
+            }
+        }
+
+        $(document).ready(function(){
+            var catalogo = [];
+            var carrito1 = new Carrito();
+            var carrito2 = new Carrito();
+
+            function cargarCatalogo() {
+                $.ajax({
+                    url: 'Backend.php',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response){
+                        catalogo = response.map(function(item) {
+                            return new Producto(item.id, item.nombre, item.precio, item.stock);
+                        });
+                        mostrarCatalogo();
+                    }
+                });
+            }
+
+            function mostrarCatalogo() {
+                var catalogoHTML = '';
+                catalogo.forEach(function(producto){
+                    catalogoHTML += '<div class="producto" data-id="' + producto.id + '">';
+                    catalogoHTML += '<h3>' + producto.nombre + '</h3>';
+                    catalogoHTML += '<p>Precio: $' + producto.precio + '</p>';
+                    catalogoHTML += '<p>Stock disponible: <span class="stock">' + producto.stock + '</span></p>';
+                    catalogoHTML += '<label>Cantidad:</label>';
+                    catalogoHTML += '<input type="number" min="1" max="' + producto.stock + '" value="1" class="cantidad">';
+                    catalogoHTML += '<input type="radio" name="carrito" value="carrito1" checked> Carrito 1';
+                    catalogoHTML += '<input type="radio" name="carrito" value="carrito2"> Carrito 2';
+                    catalogoHTML += '<button class="agregar-carrito">Agregar al carrito</button>';
+                    catalogoHTML += '</div>';
+                });
+                $('#catalogo').html(catalogoHTML);
+            }
+
+            function cargarCarritos() {
+                cargarCarrito(1, carrito1);
+                cargarCarrito(2, carrito2);
+            }
+
+            function cargarCarrito(numeroCarrito, carrito) {
+                var cantidadCarrito = carrito.obtenerCantidadProductos();
+                $('#carrito' + numeroCarrito + ' .cantidad-carrito').text(cantidadCarrito + (cantidadCarrito === 1 ? ' Producto' : ' Productos'));
+                var carritoHTML = '';
+                carrito.productos.forEach(function(producto){
+                    carritoHTML += '<li>' + producto.nombre + ' - Cantidad: ' + producto.cantidad + ' - Precio: $' + producto.precio + '</li>';
+                });
+                $('#carrito' + numeroCarrito + ' .lista-carrito').html(carritoHTML);
+            }
+
+            function actualizarStock(idProducto, cantidad) {
+                var stockDisponible = parseInt($('.producto[data-id="' + idProducto + '"] .stock').text());
+                $('.producto[data-id="' + idProducto + '"] .stock').text(stockDisponible - cantidad);
+            }
+
+            cargarCatalogo();
+
+            $('#catalogo').on('click', '.agregar-carrito', function(){
+                var idProducto = $(this).closest('.producto').data('id');
+                var cantidadProducto = parseInt($(this).siblings('.cantidad').val());
+                var stockDisponible = parseInt($(this).closest('.producto').find('.stock').text());
+                var carritoSeleccionado = $(this).siblings('input[name="carrito"]:checked').val();
+                var carrito;
+
+                if (carritoSeleccionado === 'carrito1') {
+                    carrito = carrito1;
+                } else if (carritoSeleccionado === 'carrito2') {
+                    carrito = carrito2;
+                }
+
+                if (cantidadProducto > stockDisponible) {
+                    alert('¡No hay suficiente stock disponible!');
+                    return;
+                }
+
+                var producto = catalogo.find(function(item) {
+                    return item.id === idProducto;
+                });
+
+                carrito.agregarProducto(Object.assign({}, producto, {cantidad: cantidadProducto}));
+                actualizarStock(idProducto, cantidadProducto);
+                cargarCarritos();
+            });
+
+            $('#comprar').on('click', function(){
+                comprarCarrito(carrito1);
+                comprarCarrito(carrito2);
+            });
+
+            function comprarCarrito(carrito) {
+                $.ajax({
+                    url: 'Backend.php',
+                    type: 'POST',
+                    data: {accion: 'comprar', carrito: JSON.stringify(carrito.productos)},
+                    success: function(response){
+                        alert(response);
+                        carrito.vaciarCarrito();
+                        cargarCarritos();
+                        cargarCatalogo();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
